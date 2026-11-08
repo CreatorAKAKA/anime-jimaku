@@ -3,6 +3,7 @@ import streamlit as st
 from PIL import Image
 from PIL import ImageEnhance #makes subtitles easier to read by enhancing contrast
 import numpy as np
+import hashlib #gives images unique fingerprints based on their content, so that the same image will always have the same name
 
 @st.cache_resource
 def load_reader():
@@ -10,7 +11,11 @@ def load_reader():
 
 reader = load_reader()
 
+if "ocr_text" not in st.session_state: # Initialize the session state variable for storing OCR text
+    st.session_state["ocr_text"] = ""
 
+if "previous_image_id" not in st.session_state:
+    st.session_state["previous_image_id"] = None
 
 st.title("アニメ字幕クイズ")
 st.write("Learn Japanese through anime screenshots!")
@@ -21,6 +26,12 @@ screenshot = st.file_uploader(
 )
 
 if screenshot is not None:
+    image_id = hashlib.sha256(screenshot.getvalue()).hexdigest()
+
+    if image_id != st.session_state["previous_image_id"]: #check if the uploaded image is different from the previous one
+        st.session_state["ocr_text"] = ""
+        st.session_state["previous_image_id"] = image_id
+
     image = Image.open(screenshot)
 
     st.subheader("Original Screenshot")
@@ -55,6 +66,9 @@ if screenshot is not None:
                 np.array(processed),
                 detail=0
             )
-
-        st.subheader("Recognized Text")
-        st.write("\n".join(results))
+        st.session_state["ocr_text"] = "\n".join(results)
+    st.text_area(
+        "Edit recognized Japanese text",
+        key = "ocr_text",
+        height = 150
+    )
