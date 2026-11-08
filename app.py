@@ -1,5 +1,16 @@
+import easyocr
 import streamlit as st
 from PIL import Image
+from PIL import ImageEnhance #makes subtitles easier to read by enhancing contrast
+import numpy as np
+
+@st.cache_resource
+def load_reader():
+    return easyocr.Reader(["ja"], gpu=False) #initialize the reader with Japanese language recognition, use cpu
+
+reader = load_reader()
+
+
 
 st.title("アニメ字幕クイズ")
 st.write("Learn Japanese through anime screenshots!")
@@ -33,3 +44,17 @@ if screenshot is not None:
 
     st.subheader("Detected Subtitle Region")
     st.image(subtitle_region)
+
+    if st.button("Extract Japanese Text"):
+        with st.spinner("Recognizing subtitles..."):
+            grayscale = subtitle_region.convert("L")# Convert to grayscale for easier text recognition
+            enhancer = ImageEnhance.Contrast(grayscale)
+            processed = enhancer.enhance(2.0) 
+
+            results = reader.readtext(
+                np.array(processed),
+                detail=0
+            )
+
+        st.subheader("Recognized Text")
+        st.write("\n".join(results))
