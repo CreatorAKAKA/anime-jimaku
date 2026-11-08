@@ -77,7 +77,7 @@ if screenshot is not None:
     if st.session_state["ocr_text"].strip():
         vocabulary = extract_vocabulary(st.session_state["ocr_text"])
         for entry in vocabulary:
-            entry["meanings"] = get_definitions(entry["dictionary"])
+            entry["meanings"] = get_definitions(entry["dictionary"], entry["reading"]) #get definitions for each word in the vocabulary, specifying with the reading form of the word
 
         st.subheader("Extracted Vocabulary")
         st.dataframe(vocabulary, hide_index=True)
