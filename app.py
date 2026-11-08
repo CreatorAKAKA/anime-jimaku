@@ -4,6 +4,8 @@ from PIL import Image
 from PIL import ImageEnhance #makes subtitles easier to read by enhancing contrast
 import numpy as np
 import hashlib #gives images unique fingerprints based on their content, so that the same image will always have the same name
+from token_test import extract_vocabulary #extracts vocabulary from Japanese text using SudachiPy
+from dictionary_test import get_definitions #fetches definitions for Japanese words using Jamdict
 
 @st.cache_resource
 def load_reader():
@@ -66,9 +68,16 @@ if screenshot is not None:
                 np.array(processed),
                 detail=0
             )
-        st.session_state["ocr_text"] = "\n".join(results)
+        st.session_state["ocr_text"] = "".join(results)
     st.text_area(
         "Edit recognized Japanese text",
         key = "ocr_text",
         height = 150
     )
+    if st.session_state["ocr_text"].strip():
+        vocabulary = extract_vocabulary(st.session_state["ocr_text"])
+        for entry in vocabulary:
+            entry["meanings"] = get_definitions(entry["dictionary"])
+
+        st.subheader("Extracted Vocabulary")
+        st.dataframe(vocabulary, hide_index=True)
