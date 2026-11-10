@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# JimaQuiz local database
+jimaquiz.db
+jimaquiz.db-journal
+jimaquiz.db-wal
+jimaquiz.db-shm

@@ -1,6 +1,10 @@
 import easyocr
 import streamlit as st
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="JimaQuiz | ジマクイズ",
+    page_icon="🌸",
+    layout="wide"
+)
 st.markdown("""
 <style>
 div.stButton button strong {
@@ -16,7 +20,7 @@ import hashlib #gives images unique fingerprints based on their content, so that
 from token_test import extract_vocabulary #extracts vocabulary from Japanese text using SudachiPy
 from dictionary_test import get_definitions #fetches definitions for Japanese words using Jamdict
 import html
-#from io import BytesIO
+from database import init_db, save_flashcard, load_flashcards
 
 @st.cache_resource
 def load_reader():
@@ -56,15 +60,17 @@ def update_saved_contexts():
             if context.get("image_id") == current_image_id:
                 context["sentence"] = corrected_text
 
-st.title("アニメ字幕クイズ")
-st.write("Learn Japanese through anime screenshots!")
+st.title("ジマクイズ 🌸")
+st.write("JimaQuiz - Learn Japanese through the stories you love.")
 
 image_bytes = None
 
 image_col, quiz_col = st.columns([1, 1], gap="large")
 
+init_db()
+
 if "word_bank" not in st.session_state:
-    st.session_state["word_bank"] = {}
+    st.session_state["word_bank"] = load_flashcards()
 
 if "ocr_text" not in st.session_state: # Initialize the session state variable for storing OCR text
     st.session_state["ocr_text"] = ""
@@ -280,6 +286,14 @@ if st.session_state["ocr_text"].strip():
 
             else:
                 if st.button("＋", key=f"add_{word}", disabled=image_id is None):
+                    save_flashcard(
+                        word,
+                        entry["reading"],
+                        entry["meanings"],
+                        image_bytes,
+                        st.session_state["ocr_text"],
+                        entry["surface"]
+                    )
                     new_context = {
                         "image_id": image_id,
                         "image": image_bytes,
