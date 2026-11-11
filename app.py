@@ -96,11 +96,14 @@ if "vocab_expanded" not in st.session_state:
 if "screenshots" not in st.session_state:
     st.session_state["screenshots"] = {}
 
+if "uploaded_files" not in st.session_state:
+    st.session_state["uploaded_files"] = []
+
 if "screenshot_index" not in st.session_state:
     st.session_state["screenshot_index"] = 0
 
 if mode == "Create":
-    image_col = st.container()
+    image_col, vocab_col = st.columns([3, 5], gap="large")
     with image_col:
         st.subheader("Screenshot & OCR")
 
@@ -109,6 +112,10 @@ if mode == "Create":
             type=["png", "jpg", "jpeg"],
             accept_multiple_files=True
         )
+        if screenshots:
+            st.session_state["uploaded_files"] = screenshots
+
+        screenshots = st.session_state["uploaded_files"]
         image_ids = []
 
         if screenshots:
@@ -251,172 +258,172 @@ if mode == "Create":
                         st.rerun()
 
     
+    with vocab_col:
+        vocabulary = []
 
-    vocabulary = []
+        for image_id in image_ids:
+            data = st.session_state["screenshots"][image_id]
+            text = data["ocr_text"]
 
-    for image_id in image_ids:
-        data = st.session_state["screenshots"][image_id]
-        text = data["ocr_text"]
+            if not text or not text.strip():
+                continue
 
-        if not text or not text.strip():
-            continue
+            entries = extract_vocabulary(text)
 
-        entries = extract_vocabulary(text)
+            for entry in entries:
+                entry["meanings"] = get_definitions(
+                    entry["dictionary"],
+                    entry["reading"]
+                )
 
-        for entry in entries:
-            entry["meanings"] = get_definitions(
-                entry["dictionary"],
-                entry["reading"]
-            )
+                entry["image_id"] = image_id
+                entry["image"] = data["image"]
+                entry["sentence"] = text
 
-            entry["image_id"] = image_id
-            entry["image"] = data["image"]
-            entry["sentence"] = text
+                vocabulary.append(entry)
 
-            vocabulary.append(entry)
+        grouped_vocabulary = {}
 
-    grouped_vocabulary = {}
+        for entry in vocabulary:
+            word = entry["dictionary"]
 
-    for entry in vocabulary:
-        word = entry["dictionary"]
+            if word not in grouped_vocabulary:
+                grouped_vocabulary[word] = {
+                    "reading": entry["reading"],
+                    "meanings": entry["meanings"],
+                    "contexts": []
+                }
 
-        if word not in grouped_vocabulary:
-            grouped_vocabulary[word] = {
-                "reading": entry["reading"],
-                "meanings": entry["meanings"],
-                "contexts": []
-            }
+            grouped_vocabulary[word]["contexts"].append(entry)
 
-        grouped_vocabulary[word]["contexts"].append(entry)
+        st.subheader("Extracted Vocabulary")
 
-    st.subheader("Extracted Vocabulary")
+        for word, group in sorted(grouped_vocabulary.items(), key=lambda item: len(item[1]["contexts"]), reverse=True): #makes the most frequent word appear on top
+            contexts = group["contexts"]
+            entry = contexts[0]
+            
+            select, left, middle, right = st.columns([0.5, 2, 3, 4], gap="medium") #sets the proportions of the columns for the vocabulary display
 
-    for word, group in sorted(grouped_vocabulary.items(), key=lambda item: len(item[1]["contexts"]), reverse=True): #makes the most frequent word appear on top
-        contexts = group["contexts"]
-        entry = contexts[0]
-        
-        select, left, middle, right = st.columns([0.5, 2, 3, 4], gap="medium") #sets the proportions of the columns for the vocabulary display
+            
+            with select:
+                saved_contexts = st.session_state["word_bank"].get(
+                    word, {}
+                ).get("contexts", [])
 
-        
-        with select:
-            saved_contexts = st.session_state["word_bank"].get(
-                word, {}
-            ).get("contexts", [])
+                saved_image_ids = {
+                    context["image_id"] for context in saved_contexts
+                }
 
-            saved_image_ids = {
-                context["image_id"] for context in saved_contexts
-            }
+                unsaved_contexts = [
+                    context for context in contexts
+                    if context["image_id"] not in saved_image_ids
+                ]
 
-            unsaved_contexts = [
-                context for context in contexts
-                if context["image_id"] not in saved_image_ids
-            ]
+                if not unsaved_contexts:
+                    st.button("✓", key=f"saved_{word}", disabled=True)
 
-            if not unsaved_contexts:
-                st.button("✓", key=f"saved_{word}", disabled=True)
+                else:
+                    if st.button("＋", key=f"add_{word}"):
+                        for context in unsaved_contexts:
+                            save_flashcard(
+                                word,
+                                group["reading"],
+                                group["meanings"],
+                                context["image"],
+                                context["sentence"],
+                                context["surface"]
+                            )
 
-            else:
-                if st.button("＋", key=f"add_{word}"):
-                    for context in unsaved_contexts:
-                        save_flashcard(
-                            word,
-                            group["reading"],
-                            group["meanings"],
-                            context["image"],
-                            context["sentence"],
-                            context["surface"]
-                        )
-
-                    st.session_state["word_bank"] = load_flashcards()
-                    st.rerun()
+                        st.session_state["word_bank"] = load_flashcards()
+                        st.rerun()
 
 
-        with left:
-            reading = html.escape(katakana_to_hiragana(entry["reading"]))
-            word = html.escape(entry["dictionary"])
+            with left:
+                reading = html.escape(katakana_to_hiragana(entry["reading"]))
+                word = html.escape(entry["dictionary"])
 
-            st.markdown(
-                f"""
-                <div style="
-                    background-color: rgba(244, 114, 182, 0.10);
-                    border: 1px solid rgba(244, 114, 182, 0.25);
-                    border-radius: 10px;
-                    padding: 10px;
-                    text-align: center;
-                    color: #F9A8D4;
-                ">
-                    <div style="font-size: 14px;">
-                        {reading}
+                st.markdown(
+                    f"""
+                    <div style="
+                        background-color: rgba(244, 114, 182, 0.10);
+                        border: 1px solid rgba(244, 114, 182, 0.25);
+                        border-radius: 10px;
+                        padding: 10px;
+                        text-align: center;
+                        color: #F9A8D4;
+                    ">
+                        <div style="font-size: 14px;">
+                            {reading}
+                        </div>
+                        <div style="font-size: 26px; font-weight: bold;
+                                    overflow-wrap: anywhere;">
+                            {word}
+                        </div>
                     </div>
-                    <div style="font-size: 26px; font-weight: bold;
-                                overflow-wrap: anywhere;">
-                        {word}
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            with middle:
+                original_forms = list(dict.fromkeys(
+                    context["surface"] for context in contexts
+                ))
+
+                st.caption(f"Appeared as: {', '.join(original_forms)}")
+
+                meanings = entry["meanings"]
+
+                for number, sense in enumerate(meanings[:3], start=1):
+                    st.write(f"{number}. {'; '.join(sense)}")
+
+                if len(meanings) > 3:
+                    with st.expander(f"Show {len(meanings) - 3} more definitions"):
+                        for number, sense in enumerate(meanings[3:], start=4):
+                            st.write(f"{number}. {'; '.join(sense)}")
+
+            with right:
+                first_context = contexts[0]
+
+                highlighted = highlight_word(
+                    first_context["sentence"],
+                    first_context["surface"]
+                )
+
+                st.markdown(
+                    f"""
+                    <div style="
+                        background-color: rgba(244, 114, 182, 0.05);
+                        border-radius: 8px;
+                        padding: 12px;
+                        margin-top: 8px;
+                    ">
+                        <span style="color: #F9A8D4; font-size: 12px;">
+                            EXAMPLE SENTENCE
+                        </span>
+                        <div style="font-size: 16px; margin-top: 5px;">
+                            {highlighted}
+                        </div>
                     </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+                    """,
+                    unsafe_allow_html=True
+                )
 
-        with middle:
-            original_forms = list(dict.fromkeys(
-                context["surface"] for context in contexts
-            ))
+                if len(contexts) > 1:
+                    with st.expander(f"Show {len(contexts) - 1} more examples"):
+                        for index, context in enumerate(contexts[1:], start=2):
+                            st.caption(f"Screenshot {index}")
 
-            st.caption(f"Appeared as: {', '.join(original_forms)}")
+                            highlighted = highlight_word(
+                                context["sentence"],
+                                context["surface"]
+                            )
 
-            meanings = entry["meanings"]
+                            st.markdown(highlighted, unsafe_allow_html=True)
 
-            for number, sense in enumerate(meanings[:3], start=1):
-                st.write(f"{number}. {'; '.join(sense)}")
+                            if index < len(contexts):
+                                st.divider()
 
-            if len(meanings) > 3:
-                with st.expander(f"Show {len(meanings) - 3} more definitions"):
-                    for number, sense in enumerate(meanings[3:], start=4):
-                        st.write(f"{number}. {'; '.join(sense)}")
-
-        with right:
-            first_context = contexts[0]
-
-            highlighted = highlight_word(
-                first_context["sentence"],
-                first_context["surface"]
-            )
-
-            st.markdown(
-                f"""
-                <div style="
-                    background-color: rgba(244, 114, 182, 0.05);
-                    border-radius: 8px;
-                    padding: 12px;
-                    margin-top: 8px;
-                ">
-                    <span style="color: #F9A8D4; font-size: 12px;">
-                        EXAMPLE SENTENCE
-                    </span>
-                    <div style="font-size: 16px; margin-top: 5px;">
-                        {highlighted}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            if len(contexts) > 1:
-                with st.expander(f"Show {len(contexts) - 1} more examples"):
-                    for index, context in enumerate(contexts[1:], start=2):
-                        st.caption(f"Screenshot {index}")
-
-                        highlighted = highlight_word(
-                            context["sentence"],
-                            context["surface"]
-                        )
-
-                        st.markdown(highlighted, unsafe_allow_html=True)
-
-                        if index < len(contexts):
-                            st.divider()
-
-        st.divider()
+            st.divider()
 
 elif mode == "Review":
     st.subheader("Flashcards")
@@ -452,7 +459,7 @@ elif mode == "Review":
                 context = contexts[st.session_state["context_index"]]
 
                 if context["image"] is not None:
-                    st.image(context["image"], use_container_width=True)
+                    st.image(context["image"], width=700)
             if contexts:
                 st.write("**Example Sentences**")
 
