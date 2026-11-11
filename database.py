@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import hashlib
 
+
 DB_PATH = Path(__file__).parent / "jimaquiz.db"
 
 def init_db():
@@ -19,7 +20,8 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS screenshots (
                 id INTEGER PRIMARY KEY,
-                image BLOB NOT NULL
+                image BLOB NOT NULL,
+                image_hash TEXT NOT NULL UNIQUE
             )
         """)
         conn.execute("""
@@ -53,11 +55,24 @@ def save_word(word, reading, meanings):
         
 
 def save_screenshot(image_bytes):
+    image_hash = hashlib.sha256(image_bytes).hexdigest()
+
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
-            "INSERT INTO screenshots (image) VALUES (?)",
-            (image_bytes,)
+            "SELECT id FROM screenshots WHERE image_hash = ?",
+            (image_hash,)
         )
+
+        existing = cursor.fetchone()
+
+        if existing is not None:
+            return existing[0]
+
+        cursor = conn.execute(
+            "INSERT INTO screenshots (image, image_hash) VALUES (?, ?)",
+            (image_bytes, image_hash)
+        )
+
         return cursor.lastrowid
 
 def save_context(word_id, screenshot_id, sentence, surface):
@@ -112,6 +127,36 @@ def load_flashcards():
             })
 
         return word_bank
+
+def update_context_sentences(image_bytes, corrected_text):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE contexts
+            SET sentence = ?
+            WHERE screenshot_id IN (
+                SELECT id FROM screenshots
+                WHERE image = ?
+            )
+            """,
+            (corrected_text, image_bytes)
+        )
+
+def delete_word(word):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute(
+            "DELETE FROM words WHERE word = ?",
+            (word,)
+        )
+        conn.execute("""
+            DELETE FROM screenshots
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM contexts
+                WHERE contexts.screenshot_id = screenshots.id
+            )
+        """)
 
 if __name__ == "__main__":
     init_db()

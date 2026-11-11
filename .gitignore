@@ -224,3 +224,4 @@ jimaquiz.db
 jimaquiz.db-journal
 jimaquiz.db-wal
 jimaquiz.db-shm
+*.db

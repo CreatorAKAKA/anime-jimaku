@@ -20,8 +20,7 @@ import hashlib #gives images unique fingerprints based on their content, so that
 from token_test import extract_vocabulary #extracts vocabulary from Japanese text using SudachiPy
 from dictionary_test import get_definitions #fetches definitions for Japanese words using Jamdict
 import html
-from database import init_db, save_flashcard, load_flashcards
-
+from database import init_db, save_flashcard, load_flashcards, update_context_sentences, delete_word
 @st.cache_resource
 def load_reader():
     return easyocr.Reader(["ja"], gpu=False) #initialize the reader with Japanese language recognition, use cpu
@@ -59,6 +58,12 @@ def update_saved_contexts():
         for context in info.get("contexts", []):
             if context.get("image_id") == current_image_id:
                 context["sentence"] = corrected_text
+
+    for info in st.session_state["word_bank"].values():
+        for context in info.get("contexts", []):
+            if context.get("image_id") == current_image_id:
+                update_context_sentences(context["image"], corrected_text)
+                return
 
 st.title("ジマクイズ 🌸")
 st.write("JimaQuiz - Learn Japanese through the stories you love.")
@@ -199,7 +204,14 @@ with quiz_col:
                 st.session_state["card_flipped"] = not st.session_state["card_flipped"]
                 st.rerun()
 
-        previous_col, next_col = st.columns(2)
+        first_col, previous_col, next_col, last_col = st.columns(4)
+
+        with first_col:
+            if st.button("⏮ First", disabled=st.session_state["card_index"] == 0):
+                st.session_state["context_index"] = 0
+                st.session_state["card_index"] = 0 
+                st.session_state["card_flipped"] = False
+                st.rerun()
 
         with previous_col:
             if st.button("← Previous", disabled=st.session_state["card_index"] == 0):
@@ -212,6 +224,13 @@ with quiz_col:
             if st.button("Next →", disabled=st.session_state["card_index"] == len(words) - 1):
                 st.session_state["context_index"] = 0
                 st.session_state["card_index"] += 1
+                st.session_state["card_flipped"] = False
+                st.rerun()
+
+        with last_col:
+            if st.button("Last ⏭", disabled=st.session_state["card_index"] == len(words) - 1):
+                st.session_state["context_index"] = 0
+                st.session_state["card_index"] = len(words) - 1
                 st.session_state["card_flipped"] = False
                 st.rerun()
 
@@ -253,6 +272,7 @@ with quiz_col:
 
                         with remove_col:
                             if st.button("✕", key=f"remove_{word}"):
+                                delete_word(word)
                                 del st.session_state["word_bank"][word]
                                 st.session_state["vocab_expanded"] = True
                                 st.rerun()
