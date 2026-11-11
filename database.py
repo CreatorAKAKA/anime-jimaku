@@ -158,6 +158,39 @@ def delete_word(word):
             )
         """)
 
+def delete_context(word, image_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+        # delete the specific context
+        cursor = conn.execute("""
+            DELETE FROM contexts
+            WHERE word_id = (
+                SELECT id FROM words WHERE word = ?
+            )
+            AND screenshot_id = (
+                SELECT id FROM screenshots WHERE image_hash = ?
+            )
+        """, (word, image_id))
+
+        # remove words with no remaining contexts
+        conn.execute("""
+            DELETE FROM words
+            WHERE NOT EXISTS (
+                SELECT 1 FROM contexts
+                WHERE contexts.word_id = words.id
+            )
+        """)
+
+        # remove screenshots with no remaining contexts
+        conn.execute("""
+            DELETE FROM screenshots
+            WHERE NOT EXISTS (
+                SELECT 1 FROM contexts
+                WHERE contexts.screenshot_id = screenshots.id
+            )
+        """)
+
 if __name__ == "__main__":
     init_db()
     print("Database initialized!")
