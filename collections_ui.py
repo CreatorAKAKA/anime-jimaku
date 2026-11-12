@@ -1,5 +1,5 @@
 import streamlit as st
-from database import create_group, create_set, load_groups
+from database import create_group, create_set, load_groups, delete_set, rename_set, move_set
 
 def apply_collections_css():
     st.markdown("""
@@ -87,6 +87,63 @@ def apply_collections_css():
         background: #F472B6 !important;
     }
 
+    /* Hide set management menus by default */
+    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        pointer-events: none;
+    }
+
+    /* Reveal menu when hovering over a set */
+    [class*="st-key-bookshelf_set_"]:hover [data-testid="stPopover"],
+    [class*="st-key-bookshelf_set_"]:focus-within [data-testid="stPopover"] {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Hide the bookshelf popover's dropdown arrow */
+    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button svg,
+    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button [data-testid="stIconMaterial"],
+    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button [data-testid="stIcon"] {
+        display: none !important;
+    }
+
+    /* Compact, centered three-dot button */
+    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button {
+        position: relative !important;
+        min-width: 40px !important;
+        width: 40px !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        padding: 0 !important;
+        border-radius: 10px !important;
+    }
+
+    /* Hide original contents without removing their layout */
+    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button > * {
+        visibility: hidden !important;
+    }
+
+    /* Draw dots at the exact center */
+    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button::after {
+        content: "⋯";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        visibility: visible !important;
+        color: #F9A8D4;
+        font-size: 26px;
+        line-height: 1;
+        pointer-events: none;
+    }
+
+    /* Move bookshelf management buttons closer to the right edge */
+    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] {
+        margin-left: auto !important;
+        width: fit-content !important;
+    }
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -126,11 +183,175 @@ def submit_new_set():
             f"{title} added to {group_name}!"
         )
 
+@st.dialog("Delete Set?")
+def confirm_delete_dialog(set_id, set_title):
+    st.warning(
+        f'Are you sure you want to delete "{set_title}"? '
+        "This action cannot be undone."
+    )
+
+    st.caption("Your saved vocabulary will not be deleted.")
+
+    cancel_col, delete_col = st.columns(2)
+
+    with cancel_col:
+        if st.button("Cancel", use_container_width=True):
+            st.rerun()
+
+    with delete_col:
+        if st.button(
+            "Delete Set",
+            type="primary",
+            use_container_width=True
+        ):
+            delete_set(set_id)
+            st.rerun()
+
+@st.dialog("Rename Set")
+def rename_set_dialog(set_id, current_title):
+    new_title = st.text_input(
+        "Set title",
+        value=current_title,
+        key=f"rename_input_{set_id}"
+    )
+
+    cancel_col, save_col = st.columns(2)
+
+    with cancel_col:
+        if st.button("Cancel", use_container_width=True):
+            st.rerun()
+
+    with save_col:
+        if st.button(
+            "Save Changes",
+            type="primary",
+            use_container_width=True
+        ):
+            if new_title.strip():
+                rename_set(set_id, new_title.strip())
+                st.rerun()
+            else:
+                st.error("Set title cannot be empty.")
+
+@st.dialog("Move Set")
+def move_set_dialog(set_id, set_title, current_group_id):
+    groups = load_groups()
+
+    destinations = [
+        group for group in groups
+        if group["id"] != current_group_id
+    ]
+
+    st.write(f"Moving **{set_title}**")
+
+    if not destinations:
+        st.info("Create another deck before moving this set.")
+        return
+
+    destination = st.selectbox(
+        "Move to deck",
+        options=destinations,
+        format_func=lambda group: group["name"]
+    )
+
+    cancel_col, move_col = st.columns(2)
+
+    with cancel_col:
+        if st.button("Cancel", use_container_width=True):
+            st.rerun()
+
+    with move_col:
+        if st.button(
+            "Move Set",
+            type="primary",
+            use_container_width=True
+        ):
+            move_set(set_id, destination["id"])
+            st.rerun()
+
 def show_collections():
 
     apply_collections_css()
 
     saved_groups = load_groups()
+
+    if "open_deck" not in st.session_state:
+        st.session_state["open_deck"] = None
+
+    if st.session_state["open_deck"] is not None:
+        deck = next(
+            (
+                group for group in saved_groups
+                if group["id"] == st.session_state["open_deck"]
+            ),
+            None
+        )
+
+        if deck is None:
+            st.session_state["open_deck"] = None
+            st.rerun()
+
+        if st.button("← Back to Library"):
+            st.session_state["open_deck"] = None
+            st.rerun()
+
+        st.header(deck["name"])
+        st.caption(f"{len(deck['sets'])} sets")
+
+        if not deck["sets"]:
+            st.info("This deck is empty.")
+        else:
+            columns = st.columns(3, gap="medium")
+
+            for index, collection_set in enumerate(deck["sets"]):
+                column = columns[index % 3]
+
+                with column:
+                    with st.container(
+                        key=f"bookshelf_set_{collection_set['id']}",
+                        border=True
+                    ):
+                        title_col, menu_col = st.columns(
+                            [12, 1],
+                            vertical_alignment="center",
+                            gap="small"
+                        )
+
+                        with title_col:
+                            st.markdown(f"### {collection_set['title']}")
+
+                        with menu_col:
+                            with st.popover("⋯"):
+                                st.write("Manage Set")
+                                if st.button(
+                                    "Rename",
+                                    key=f"rename_{collection_set['id']}"
+                                ):
+                                    rename_set_dialog(
+                                        collection_set["id"],
+                                        collection_set["title"]
+                                    )
+                                if st.button(
+                                    "Move",
+                                    key=f"move_{collection_set['id']}"
+                                ):
+                                    move_set_dialog(
+                                        collection_set["id"],
+                                        collection_set["title"],
+                                        deck["id"]
+                                    )
+                                if st.button(
+                                    "Delete",
+                                    key=f"delete_{collection_set['id']}"
+                                ):
+                                    confirm_delete_dialog(
+                                        collection_set["id"],
+                                        collection_set["title"]
+                                    )
+
+                        st.caption("Cards: 0")
+
+        return
 
     with st.container(key="library_add_menu"):
         with st.popover("＋", help="Add a deck or set"):
@@ -205,15 +426,21 @@ def show_collections():
     if "collection_positions" not in st.session_state:
         st.session_state["collection_positions"] = {}
 
-    left, right = st.columns(2, gap="large")
+    columns = st.columns(3, gap="medium")
 
     for index, group in enumerate(saved_groups):
         group_name = group["name"]
         sets = group["sets"]
-        column = left if index % 2 == 0 else right
+        column = columns[index % 3]
 
         with column:
-            st.markdown(f"### {group_name}")
+            if st.button(
+                group_name,
+                key=f"open_deck_{group['id']}",
+                type="tertiary"
+            ):
+                st.session_state["open_deck"] = group["id"]
+                st.rerun()
 
             if not sets:
                 st.info("No sets yet. Create one using ＋ New Set.")

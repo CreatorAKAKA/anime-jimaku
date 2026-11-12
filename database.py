@@ -273,6 +273,38 @@ def load_groups():
 
         return result
 
+def delete_set(set_id):
+    """Delete a collection set without deleting vocabulary."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute(
+            "DELETE FROM collection_sets WHERE id = ?",
+            (set_id,)
+        )
+
+def rename_set(set_id, new_title):
+    """Rename an existing set."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE collection_sets
+            SET title = ?
+            WHERE id = ?
+            """,
+            (new_title, set_id)
+        )
+
+def move_set(set_id, new_group_id):
+    """Move a set to another deck."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE collection_sets
+            SET group_id = ?
+            WHERE id = ?
+            """,
+            (new_group_id, set_id)
+        )
 
 if __name__ == "__main__":
     init_db()
