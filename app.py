@@ -11,10 +11,29 @@ div.stButton button strong {
     color: #F9A8D4 !important;
     font-weight: 700;
 }
+
+/* Larger example sentence buttons in Review */
+.st-key-review_examples button p {
+    font-size: 20px !important;
+    line-height: 1.6 !important;
+}
+/* Translucent pink Flip Card button */
+button[kind="primary"] {
+    background-color: rgba(244, 114, 182, 0.10) !important;
+    border: 1px solid rgba(244, 114, 182, 0.25) !important;
+    color: #F9A8D4 !important;
+}
+
+button[kind="primary"]:hover {
+    background-color: rgba(244, 114, 182, 0.20) !important;
+    border-color: rgba(244, 114, 182, 0.50) !important;
+    color: #F9A8D4 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 from PIL import Image
 from PIL import ImageEnhance #makes subtitles easier to read by enhancing contrast
+from collections_ui import show_collections
 import numpy as np
 import hashlib #gives images unique fingerprints based on their content, so that the same image will always have the same name
 import io
@@ -302,7 +321,7 @@ if mode == "Create":
             contexts = group["contexts"]
             entry = contexts[0]
             
-            select, left, middle, right = st.columns([0.5, 2, 3, 4], gap="medium") #sets the proportions of the columns for the vocabulary display
+            select, left, middle, right = st.columns([1, 2, 3, 4], gap="medium") #sets the proportions of the columns for the vocabulary display
 
             
             with select:
@@ -450,68 +469,80 @@ elif mode == "Review":
 
         st.write(f"Card {st.session_state['card_index'] + 1} of {len(words)}")
 
-        with st.container(border=True):
-            st.markdown(f"### {current_word}")
-            contexts = info.get("contexts", [])
+        left_space, card_col, right_space = st.columns([1, 4, 1])
 
-            if contexts:
-                st.session_state["context_index"] %= len(contexts)
-                context = contexts[st.session_state["context_index"]]
+        with card_col:
+            with st.container(border=True):
+                st.markdown(f"### {current_word}")
+                contexts = info.get("contexts", [])
 
-                if context["image"] is not None:
-                    st.image(context["image"], width=700)
-            if contexts:
-                st.write("**Example Sentences**")
+                if contexts:
+                    st.session_state["context_index"] %= len(contexts)
+                    context = contexts[st.session_state["context_index"]]
 
-                for number, example in enumerate(contexts):
-                    if st.button(
-                        example["sentence"].replace(example.get("surface", current_word), f"**{example.get('surface', current_word)}**"),
-                        key=f"context_{current_word}_{number}",
-                        use_container_width=True
-                    ):
-                        st.session_state["context_index"] = number
+                    if context["image"] is not None:
+                        st.image(context["image"], use_container_width=True)
+                if contexts:
+                    st.write("**Example Sentences**")
+                    with st.container(key="review_examples"):
+                        for number, example in enumerate(contexts):
+                            if st.button(
+                                example["sentence"].replace(example.get("surface", current_word), f"**{example.get('surface', current_word)}**"),
+                                key=f"context_{current_word}_{number}",
+                                use_container_width=True
+                            ):
+                                st.session_state["context_index"] = number
+                                st.rerun()
+                if st.session_state["card_flipped"]:
+                    reading = katakana_to_hiragana(info["reading"])
+                    st.write(f"**Reading:** {reading}")
+
+                    for sense in info["meanings"][:3]:
+                        st.write("; ".join(sense))
+
+                left_group, center_group, right_group = st.columns([2, 3, 2], vertical_alignment="center")
+
+                with left_group:
+                    first_col, previous_col = st.columns(2, gap="small")
+
+                with center_group:
+                    flip_col = st.container()
+
+                with right_group:
+                    next_col, last_col = st.columns(2, gap="small")
+
+                with first_col:
+                    if st.button("⏮ First", disabled=st.session_state["card_index"] == 0, use_container_width=True):
+                        st.session_state["context_index"] = 0
+                        st.session_state["card_index"] = 0 
+                        st.session_state["card_flipped"] = False
                         st.rerun()
-            if st.session_state["card_flipped"]:
-                reading = katakana_to_hiragana(info["reading"])
-                st.write(f"**Reading:** {reading}")
 
-                for sense in info["meanings"][:3]:
-                    st.write("; ".join(sense))
+                with previous_col:
+                    if st.button("← Prev", disabled=st.session_state["card_index"] == 0, use_container_width=True):
+                        st.session_state["context_index"] = 0
+                        st.session_state["card_index"] -= 1
+                        st.session_state["card_flipped"] = False
+                        st.rerun()
 
+                with flip_col:
+                    if st.button("Flip Card", type="primary", use_container_width=True):
+                        st.session_state["card_flipped"] = not st.session_state["card_flipped"]
+                        st.rerun()
 
-            if st.button("Flip Card"):
-                st.session_state["card_flipped"] = not st.session_state["card_flipped"]
-                st.rerun()
+                with next_col:
+                    if st.button("Next →", disabled=st.session_state["card_index"] == len(words) - 1, use_container_width=True):
+                        st.session_state["context_index"] = 0
+                        st.session_state["card_index"] += 1
+                        st.session_state["card_flipped"] = False
+                        st.rerun()
 
-        first_col, previous_col, next_col, last_col = st.columns(4)
-
-        with first_col:
-            if st.button("⏮ First", disabled=st.session_state["card_index"] == 0):
-                st.session_state["context_index"] = 0
-                st.session_state["card_index"] = 0 
-                st.session_state["card_flipped"] = False
-                st.rerun()
-
-        with previous_col:
-            if st.button("← Previous", disabled=st.session_state["card_index"] == 0):
-                st.session_state["context_index"] = 0
-                st.session_state["card_index"] -= 1
-                st.session_state["card_flipped"] = False
-                st.rerun()
-
-        with next_col:
-            if st.button("Next →", disabled=st.session_state["card_index"] == len(words) - 1):
-                st.session_state["context_index"] = 0
-                st.session_state["card_index"] += 1
-                st.session_state["card_flipped"] = False
-                st.rerun()
-
-        with last_col:
-            if st.button("Last ⏭", disabled=st.session_state["card_index"] == len(words) - 1):
-                st.session_state["context_index"] = 0
-                st.session_state["card_index"] = len(words) - 1
-                st.session_state["card_flipped"] = False
-                st.rerun()
+                with last_col:
+                    if st.button("Last ⏭", disabled=st.session_state["card_index"] == len(words) - 1, use_container_width=True):
+                        st.session_state["context_index"] = 0
+                        st.session_state["card_index"] = len(words) - 1
+                        st.session_state["card_flipped"] = False
+                        st.rerun()
 
     with st.expander(f"Saved Vocabulary ({len(word_bank)})", expanded=st.session_state["vocab_expanded"]):
         with st.container(height=350, border=False):
@@ -558,4 +589,4 @@ elif mode == "Review":
     
 
 elif mode == "Collections":
-    st.subheader("My Collections")
+    show_collections()
