@@ -36,6 +36,24 @@ def init_db():
                 FOREIGN KEY (screenshot_id) REFERENCES screenshots(id)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS collection_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS collection_sets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                FOREIGN KEY (group_id)
+                    REFERENCES collection_groups(id)
+                    ON DELETE CASCADE,
+                UNIQUE(group_id, title)
+            )
+        """)
+
 
 def save_word(word, reading, meanings):
     with sqlite3.connect(DB_PATH) as conn:
@@ -190,6 +208,71 @@ def delete_context(word, image_id):
                 WHERE contexts.screenshot_id = screenshots.id
             )
         """)
+
+
+def create_group(name):
+    """Create a new collection group."""
+    name = name.strip()
+
+    if not name:
+        return
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO collection_groups (name) VALUES (?)",
+            (name,)
+        )
+
+
+def create_set(group_id, title):
+    """Create a new set inside a collection group."""
+    title = title.strip()
+
+    if not title:
+        return
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO collection_sets (group_id, title)
+            VALUES (?, ?)
+            """,
+            (group_id, title)
+        )
+
+
+def load_groups():
+    """Return groups and their sets from SQLite."""
+    with sqlite3.connect(DB_PATH) as conn:
+        groups = conn.execute(
+            "SELECT id, name FROM collection_groups ORDER BY id"
+        ).fetchall()
+
+        result = []
+
+        for group_id, name in groups:
+            sets = conn.execute(
+                """
+                SELECT id, title
+                FROM collection_sets
+                WHERE group_id = ?
+                ORDER BY id
+                """,
+                (group_id,)
+            ).fetchall()
+
+            result.append({
+                "id": group_id,
+                "name": name,
+                "sets": [
+                    {"id": set_id, "title": title}
+                    for set_id, title in sets
+                ]
+            })
+
+        return result
+
 
 if __name__ == "__main__":
     init_db()
