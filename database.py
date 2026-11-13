@@ -53,6 +53,17 @@ def init_db():
                 UNIQUE(group_id, title)
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS set_words (
+                set_id INTEGER NOT NULL,
+                word_id INTEGER NOT NULL,
+                PRIMARY KEY (set_id, word_id),
+                FOREIGN KEY (set_id) REFERENCES collection_sets(id)
+                    ON DELETE CASCADE,
+                FOREIGN KEY (word_id) REFERENCES words(id)
+                    ON DELETE CASCADE
+            )
+        """)
 
 
 def save_word(word, reading, meanings):
@@ -305,6 +316,54 @@ def move_set(set_id, new_group_id):
             """,
             (new_group_id, set_id)
         )
+
+def add_word_to_set(word, set_id):
+    """Add an existing vocabulary word to a set."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        cursor = conn.execute(
+            """
+            INSERT OR IGNORE INTO set_words (set_id, word_id)
+            SELECT ?, id
+            FROM words
+            WHERE word = ?
+            """,
+            (set_id, word)
+        )
+        return cursor.rowcount > 0
+
+
+def load_set_words(set_id):
+    """Load vocabulary belonging to a particular set."""
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            """
+            SELECT words.word, words.reading, words.meanings
+            FROM set_words
+            JOIN words ON set_words.word_id = words.id
+            WHERE set_words.set_id = ?
+            ORDER BY words.word
+            """,
+            (set_id,)
+        ).fetchall()
+
+        return [
+            {
+                "word": word,
+                "reading": reading,
+                "meanings": json.loads(meanings)
+            }
+            for word, reading, meanings in rows
+        ]
+
+def load_saved_words():
+    """Return all saved vocabulary words."""
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT word FROM words ORDER BY word"
+        ).fetchall()
+
+        return [row[0] for row in rows]
 
 if __name__ == "__main__":
     init_db()

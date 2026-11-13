@@ -40,7 +40,7 @@ import io
 from token_test import extract_vocabulary #extracts vocabulary from Japanese text using SudachiPy
 from dictionary_test import get_definitions #fetches definitions for Japanese words using Jamdict
 import html
-from database import init_db, save_flashcard, load_flashcards, update_context_sentences, delete_word, delete_context
+from database import (init_db, save_flashcard, load_flashcards, update_context_sentences, delete_word, delete_context, load_groups, add_word_to_set)
 @st.cache_resource
 def load_reader():
     return easyocr.Reader(["ja"], gpu=False) #initialize the reader with Japanese language recognition, use cpu
@@ -317,6 +317,30 @@ if mode == "Create":
 
         st.subheader("Extracted Vocabulary")
 
+        groups = load_groups()
+
+        set_options = [
+            (collection_set["id"], group["name"], collection_set["title"])
+            for group in groups
+            for collection_set in group["sets"]
+        ]
+
+        selected_set_id = None
+
+        if set_options:
+            selected_set_id = st.selectbox(
+                "Save vocabulary to",
+                options=[option[0] for option in set_options],
+                format_func=lambda set_id: next(
+                    f"{group_name} → {set_title}"
+                    for option_id, group_name, set_title in set_options
+                    if option_id == set_id
+                ),
+                key="create_destination_set"
+            )
+        else:
+            st.info("Create a deck and set in Collections before saving vocabulary.")
+
         for word, group in sorted(grouped_vocabulary.items(), key=lambda item: len(item[1]["contexts"]), reverse=True): #makes the most frequent word appear on top
             contexts = group["contexts"]
             entry = contexts[0]
@@ -342,7 +366,11 @@ if mode == "Create":
                     st.button("✓", key=f"saved_{word}", disabled=True)
 
                 else:
-                    if st.button("＋", key=f"add_{word}"):
+                    if st.button(
+                        "＋",
+                        key=f"add_{word}",
+                        disabled=selected_set_id is None
+                    ):
                         for context in unsaved_contexts:
                             save_flashcard(
                                 word,
@@ -352,6 +380,8 @@ if mode == "Create":
                                 context["sentence"],
                                 context["surface"]
                             )
+
+                        add_word_to_set(word, selected_set_id)
 
                         st.session_state["word_bank"] = load_flashcards()
                         st.rerun()

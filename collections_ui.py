@@ -1,5 +1,5 @@
 import streamlit as st
-from database import create_group, create_set, load_groups, delete_set, rename_set, move_set
+from database import create_group, create_set, load_groups, delete_set, rename_set, move_set, add_word_to_set, load_set_words, load_saved_words
 
 def apply_collections_css():
     st.markdown("""
@@ -87,63 +87,128 @@ def apply_collections_css():
         background: #F472B6 !important;
     }
 
-    /* Hide set management menus by default */
-    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] {
-        opacity: 0;
-        transition: opacity 0.2s ease;
-        pointer-events: none;
+
+    /* Shared set card */
+    [class*="st-key-set_card_"] {
+        position: relative;
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        padding: 14px;
+        transition: border-color 0.2s, background-color 0.2s;
     }
 
-    /* Reveal menu when hovering over a set */
-    [class*="st-key-bookshelf_set_"]:hover [data-testid="stPopover"],
-    [class*="st-key-bookshelf_set_"]:focus-within [data-testid="stPopover"] {
-        opacity: 1;
-        pointer-events: auto;
+    [class*="st-key-set_card_"]:hover {
+        border-color: rgba(249, 168, 212, 0.55);
+        background: rgba(249, 168, 212, 0.035);
     }
 
-    /* Hide the bookshelf popover's dropdown arrow */
-    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button svg,
-    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button [data-testid="stIconMaterial"],
-    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button [data-testid="stIcon"] {
-        display: none !important;
-    }
-
-    /* Compact, centered three-dot button */
-    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button {
-        position: relative !important;
-        min-width: 40px !important;
-        width: 40px !important;
-        height: 40px !important;
-        min-height: 40px !important;
-        padding: 0 !important;
+    /* Main clickable area */
+    [class*="st-key-card_open_"] button {
+        width: 100% !important;
+        min-height: 145px !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        padding: 12px !important;
         border-radius: 10px !important;
     }
 
-    /* Hide original contents without removing their layout */
-    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button > * {
-        visibility: hidden !important;
+    [class*="st-key-card_open_"] button:hover {
+        background: rgba(249, 168, 212, 0.06) !important;
     }
 
-    /* Draw dots at the exact center */
-    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] button::after {
+    /* Card title and content */
+    [class*="st-key-card_open_"] button p {
+        font-size: 17px !important;
+        font-weight: 600 !important;
+        line-height: 1.7 !important;
+        white-space: pre-line !important;
+    }
+
+    /* Progress indicators */
+    [class*="st-key-set_card_"] [data-testid="stCaptionContainer"] {
+        color: #F9A8D4 !important;
+        font-size: 12px !important;
+    }
+
+
+    /* Unified set card */
+    [class*="st-key-set_card_"] {
+        position: relative;
+        border-radius: 14px !important;
+        background: rgba(255, 255, 255, 0.025);
+        transition: background 0.2s, border-color 0.2s;
+    }
+
+    [class*="st-key-set_card_"]:hover {
+        border-color: rgba(249, 168, 212, 0.5) !important;
+        background: rgba(249, 168, 212, 0.035);
+    }
+
+    /* Clickable card content */
+    [class*="st-key-card_open_"] button {
+        width: 100% !important;
+        min-height: 110px !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        white-space: normal !important;
+    }
+
+    [class*="st-key-card_open_"] button:hover {
+        background: rgba(249, 168, 212, 0.06) !important;
+    }
+
+    [class*="st-key-card_open_"] button p {
+        font-size: 17px !important;
+        font-weight: 600 !important;
+    }
+
+    /* Bookshelf set management menu */
+    [class*="st-key-set_card_"] [data-testid="stPopover"] {
+        position: relative;
+    }
+
+    /* Hide Streamlit's default arrow */
+    [class*="st-key-set_card_"] [data-testid="stPopover"] button {
+        position: relative;
+        font-size: 0 !important;
+        color: transparent !important;
+        min-width: 30px !important;
+        padding: 0 !important;
+    }
+
+    [class*="st-key-set_card_"] [data-testid="stPopover"] button svg {
+        display: none !important;
+    }
+
+    /* Replace with pink dots */
+    [class*="st-key-set_card_"] [data-testid="stPopover"] button::after {
         content: "⋯";
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        visibility: visible !important;
-        color: #F9A8D4;
-        font-size: 26px;
+        font-size: 24px !important;
+        color: #F9A8D4 !important;
         line-height: 1;
-        pointer-events: none;
     }
 
-    /* Move bookshelf management buttons closer to the right edge */
-    [class*="st-key-bookshelf_set_"] [data-testid="stPopover"] {
-        margin-left: auto !important;
-        width: fit-content !important;
+    /* Only show the menu when hovering over a set */
+    [class*="st-key-set_card_"] [data-testid="stPopover"] {
+        opacity: 0;
+        transition: opacity 0.15s ease;
     }
 
+    [class*="st-key-set_card_"]:hover [data-testid="stPopover"],
+    [class*="st-key-set_card_"] [data-testid="stPopover"]:focus-within {
+        opacity: 1;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -269,6 +334,101 @@ def move_set_dialog(set_id, set_title, current_group_id):
             move_set(set_id, destination["id"])
             st.rerun()
 
+@st.dialog("Add Vocabulary")
+def add_vocabulary_dialog(set_id, set_title):
+    st.write(f"Adding vocabulary to **{set_title}**")
+
+    saved_words = load_saved_words()
+    existing_words = {
+        entry["word"] for entry in load_set_words(set_id)
+    }
+
+    available_words = [
+        word for word in saved_words
+        if word not in existing_words
+    ]
+
+    if not available_words:
+        st.info("No additional saved vocabulary available.")
+        if st.button("Close"):
+            st.rerun()
+        return
+
+    selected_words = st.multiselect(
+        "Select vocabulary",
+        options=available_words,
+        key=f"add_vocab_{set_id}"
+    )
+
+    cancel_col, add_col = st.columns(2)
+
+    with cancel_col:
+        if st.button("Cancel", use_container_width=True):
+            st.rerun()
+
+    with add_col:
+        if st.button(
+            "Add Words",
+            type="primary",
+            use_container_width=True,
+            disabled=not selected_words
+        ):
+            for word in selected_words:
+                add_word_to_set(word, set_id)
+
+            st.rerun()
+
+
+
+def render_set_card(collection_set, show_menu=False, deck_id=None):
+    """Render a shared set card for Library and Bookshelf."""
+    set_id = collection_set["id"]
+    title = collection_set["title"]
+    word_count = len(load_set_words(set_id))
+
+    with st.container(
+        key=f"set_card_{set_id}_{show_menu}",
+        border=True
+    ):
+        content_col, menu_col = st.columns(
+            [12, 1] if show_menu else [12, 0.01],
+            vertical_alignment="top",
+            gap="small"
+        )
+
+        with content_col:
+            if st.button(
+                f"▧   {title}  ·  Cards: {word_count}",
+                key=f"card_open_{set_id}_{show_menu}",
+                use_container_width=True
+            ):
+                st.session_state["open_set"] = set_id
+                st.rerun()
+
+        if show_menu:
+            with menu_col:
+                with st.popover("⋯"):
+                    st.write("Manage Set")
+
+                    if st.button("Rename", key=f"rename_{set_id}"):
+                        rename_set_dialog(set_id, title)
+
+                    if st.button("Move", key=f"move_{set_id}"):
+                        move_set_dialog(set_id, title, deck_id)
+
+                    if st.button("Delete", key=f"delete_{set_id}"):
+                        confirm_delete_dialog(set_id, title)
+
+        progress_cols = st.columns(3, gap="small")
+
+        for col, label in zip(
+            progress_cols,
+            ["完璧", "まだ", "全然"]
+        ):
+            with col:
+                st.caption(f"{label}: —")
+
+
 def show_collections():
 
     apply_collections_css()
@@ -277,6 +437,9 @@ def show_collections():
 
     if "open_deck" not in st.session_state:
         st.session_state["open_deck"] = None
+
+    if "open_set" not in st.session_state:
+        st.session_state["open_set"] = None
 
     if st.session_state["open_deck"] is not None:
         deck = next(
@@ -307,49 +470,12 @@ def show_collections():
                 column = columns[index % 3]
 
                 with column:
-                    with st.container(
-                        key=f"bookshelf_set_{collection_set['id']}",
-                        border=True
-                    ):
-                        title_col, menu_col = st.columns(
-                            [12, 1],
-                            vertical_alignment="center",
-                            gap="small"
-                        )
+                    render_set_card(
+                        collection_set,
+                        show_menu=True,
+                        deck_id=deck["id"]
+                    )
 
-                        with title_col:
-                            st.markdown(f"### {collection_set['title']}")
-
-                        with menu_col:
-                            with st.popover("⋯"):
-                                st.write("Manage Set")
-                                if st.button(
-                                    "Rename",
-                                    key=f"rename_{collection_set['id']}"
-                                ):
-                                    rename_set_dialog(
-                                        collection_set["id"],
-                                        collection_set["title"]
-                                    )
-                                if st.button(
-                                    "Move",
-                                    key=f"move_{collection_set['id']}"
-                                ):
-                                    move_set_dialog(
-                                        collection_set["id"],
-                                        collection_set["title"],
-                                        deck["id"]
-                                    )
-                                if st.button(
-                                    "Delete",
-                                    key=f"delete_{collection_set['id']}"
-                                ):
-                                    confirm_delete_dialog(
-                                        collection_set["id"],
-                                        collection_set["title"]
-                                    )
-
-                        st.caption("Cards: 0")
 
         return
 
@@ -452,19 +578,16 @@ def show_collections():
 
             current = sets[position]
 
-            with st.container(key=f"collection_deck_{index}", border=True):
-                st.markdown(f"#### {current['title']}")
-                st.write("Cards: 0")
-                st.caption("Progress tracking coming later")
+            render_set_card(current)
 
-                if st.button(
-                    "Reveal next set",
-                    key=f"next_set_{index}",
-                    use_container_width=True,
-                ):
-                    st.session_state["collection_positions"][group_name] = (
-                        position + 1
-                    ) % len(sets)
-                    st.rerun()
+            if st.button(
+                "Reveal next set",
+                key=f"next_set_{index}",
+                use_container_width=True,
+            ):
+                st.session_state["collection_positions"][group_name] = (
+                    position + 1
+                ) % len(sets)
+                st.rerun()
 
             st.caption(f"Sets: {len(sets)}")
